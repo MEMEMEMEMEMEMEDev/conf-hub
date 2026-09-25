@@ -24,4 +24,4 @@ resources:
 # ${REGISTRY}/${IMAGE}, or write-digest.mjs does not find it.
 images:
   - name: registry.registry-system.svc.cluster.local:5000/conf-hub
-    digest: sha256:aef8ec344743769f7ffff46d4bcd0b5bd99ab95e0eb1f12e2c180ce0e49919b6
+    digest: sha256:983f01f9eef5f1135a3324afba70ec9e348fce432e9553dfd16c46c294d13330

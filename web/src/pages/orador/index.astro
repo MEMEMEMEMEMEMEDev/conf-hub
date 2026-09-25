@@ -1,0 +1,11 @@
+---
+import Base from "../../layouts/Base.astro";
+import Orador from "../../islas/Orador";
+---
+<Base titulo="orador · conf"><Orador client:only="react" /></Base>
+<style is:global>
+  /* Se lee a dos metros, en la notebook del escenario. */
+  .orador .pliego-pregunta__texto { font-size: clamp(1.3rem, 2.4vw, 2.1rem); line-height: 1.3; }
+  .orador .orador__primera .pliego-pregunta__texto { font-size: clamp(1.7rem, 3.4vw, 3rem); }
+  .orador .orador__primera { box-shadow: inset 6px 0 0 var(--pliego-rosa); }
+</style>

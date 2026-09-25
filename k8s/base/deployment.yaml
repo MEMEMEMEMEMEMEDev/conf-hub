@@ -49,8 +49,34 @@ spec:
             # to write mounts an emptyDir on /tmp (see the
             # `service-node` and `service-java` templates, which do).
             readOnlyRootFilesystem: true
+          # Las variables vienen del contrato de plataforma (25-09): redis es
+          # el servicio `bus` con su Secret; el login del panel, `hub-panel`.
+          # La clave de firma se deriva de la contraseña de redis (main.go).
+          env:
+            - {name: REDIS_ADDR, value: "bus:6379"}
+            - name: REDIS_PASSWORD
+              valueFrom: {secretKeyRef: {name: bus-credenciales, key: password}}
+            - name: OPERADOR_USUARIO
+              valueFrom: {secretKeyRef: {name: hub-panel, key: usuario}}
+            - name: OPERADOR_PASSWORD
+              valueFrom: {secretKeyRef: {name: hub-panel, key: password}}
+            - {name: SALAS_DEMO, value: "2"}
+            - {name: DEMO_SOLO_CON_PUBLICO, value: "1"}
+            - {name: PARCIAL_CADA_S, value: "3"}
+            - {name: BACKEND_DEFECTO, value: "gpu"}
+            - {name: MAX_SALAS, value: "28"}
+            # Detrás del túnel de Cloudflare: la IP del visitante (para el
+            # tope por visitante) viene en CF-Connecting-IP.
+            - {name: CONFIAR_CF, value: "1"}
+            - {name: COOKIE_SEGURA, value: "1"}
+          # La del PROCESO. /api/healthz (motor incluido) es la del sitio,
+          # no la del pod: un Recreate del motor no puede matar al hub.
           readinessProbe:
-            httpGet: {path: /healthz, port: 8080}
+            httpGet: {path: /api/listo, port: 8080}
+          livenessProbe:
+            httpGet: {path: /api/listo, port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 20
           # A RELEASE MUST NOT DROP THE PEOPLE ON THE SITE (plan/19 B-8).
           # On SIGTERM the pod leaves the Service's endpoints and stops at
           # the same instant, but traefik keeps routing to it until the
@@ -62,9 +88,11 @@ spec:
           lifecycle:
             preStop:
               sleep: {seconds: 5}
+          # Tamaño `grande`: sostiene las conexiones SSE de la audiencia y
+          # embebe el audio demo (~8 MB) y el front.
           resources:
-            requests: {cpu: 50m, memory: 32Mi}
-            limits: {cpu: 200m, memory: 64Mi}
+            requests: {cpu: 200m, memory: 128Mi}
+            limits: {cpu: "1", memory: 512Mi}
 ---
 apiVersion: v1
 kind: Service

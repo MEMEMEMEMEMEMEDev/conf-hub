@@ -1,0 +1,58 @@
+---
+import Base from "../layouts/Base.astro";
+import Portada from "../islas/Portada";
+import { PliegoTitulo, PliegoFilete, PliegoFicha, PliegoTabla } from "@ahroi/foundation/pliego";
+import { CAPACIDAD, NOTAS_CAPACIDAD, CALIDAD, NOTA_CALIDAD, FECHA } from "../datos/mediciones";
+---
+<Base titulo="conf — subtítulos y traducción en vivo para conferencias">
+  <div class="lamina">
+    <header style="display:grid;gap:1rem">
+      <PliegoTitulo size="hero" as="h1" sobre="subtítulos en vivo" kana="字幕">conf</PliegoTitulo>
+      <p class="prosa">
+        Audio de cada sala en vivo → subtítulos en el idioma de la charla y su traducción (inglés ↔ español),
+        para quien no oye o no entiende el idioma. Varias salas a la vez, en una GPU de escritorio, sin
+        operadores. Open source, sobre <strong>aegis</strong>, la plataforma que lo despliega y lo opera.
+      </p>
+    </header>
+
+    <section aria-labelledby="t-salas" style="display:grid;gap:1rem">
+      <h2 id="t-salas" class="sr">Salas</h2>
+      <PliegoFilete label="salas" />
+      <Portada client:load />
+    </section>
+
+    <section aria-labelledby="t-medido" style="display:grid;gap:1rem">
+      <h2 id="t-medido" class="sr">Lo medido</h2>
+      <PliegoFilete label="lo medido" readout={FECHA} />
+      <PliegoTabla
+        titulo="Capacidad y costo por backend"
+        columnas={[
+          { clave: "backend", titulo: "Backend" },
+          { clave: "modelo", titulo: "Modelo" },
+          { clave: "salas", titulo: "Salas a la vez", alinear: "der" },
+          { clave: "proceso", titulo: "Proceso p95", alinear: "der" },
+          { clave: "costo", titulo: "USD por sala-hora", alinear: "der" },
+        ]}
+        filas={CAPACIDAD.map((c, i) => ({ id: String(i), celdas: c }))}
+      />
+      {NOTAS_CAPACIDAD.map((n) => <p class="prosa">{n}</p>)}
+      <PliegoTabla
+        titulo="Calidad"
+        columnas={[{ clave: "cosa", titulo: "Qué" }, { clave: "valor", titulo: "Resultado", alinear: "der" }]}
+        filas={CALIDAD.map((c, i) => ({ id: String(i), celdas: c }))}
+      />
+      <p class="prosa">{NOTA_CALIDAD}</p>
+    </section>
+
+    <section aria-labelledby="t-como" style="display:grid;gap:1rem">
+      <h2 id="t-como" class="sr">Cómo funciona</h2>
+      <PliegoFilete label="cómo funciona" />
+      <div style="display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))">
+        <PliegoFicha indice="01" titulo="entra el audio">La consola de la sala manda el micrófono, o el audio de una pestaña, por WebSocket a 16 kHz.</PliegoFicha>
+        <PliegoFicha indice="02" titulo="se corta en las pausas">Tramos de 8 a 12 s que terminan donde el orador respira: ninguna palabra partida.</PliegoFicha>
+        <PliegoFicha indice="03" titulo="transcribe y traduce">Un solo proceso en la GPU atiende todas las salas. Si la placa falla, las salas pasan solas a Gemini.</PliegoFicha>
+        <PliegoFicha indice="04" titulo="llega a cada pantalla">Por SSE: el celular de cada persona, el overlay de OBS o vMix, y el SRT/VTT al terminar la charla.</PliegoFicha>
+      </div>
+    </section>
+  </div>
+</Base>

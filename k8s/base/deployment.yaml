@@ -69,11 +69,12 @@ spec:
             # tope por visitante) viene en CF-Connecting-IP.
             - {name: CONFIAR_CF, value: "1"}
             - {name: COOKIE_SEGURA, value: "1"}
-            # Mientras la ruta tenga el middleware `buffering` (hallazgo A-01,
-            # pedido D-07): cada respuesta SSE se cierra a los 1,5 s para que
-            # el proxy la suelte, y el navegador reconecta con Last-Event-ID.
-            # Cuando plataforma saque el buffering de esa ruta: poner "0".
-            - {name: SSE_VENTANA_S, value: "1.5"}
+            # SSE sin fin (0). Con "1.5" cada respuesta se cierra a los 1,5 s:
+            # sirvió mientras la ruta bufferizaba (hallazgo A-01); plataforma
+            # lo arregló en el producto (D-07, 09:36) con una ruta sin
+            # buffering para SSE y WebSocket. Queda para instalaciones con un
+            # proxy que bufferice.
+            - {name: SSE_VENTANA_S, value: "0"}
           # La del PROCESO. /api/healthz (motor incluido) es la del sitio,
           # no la del pod: un Recreate del motor no puede matar al hub.
           readinessProbe:

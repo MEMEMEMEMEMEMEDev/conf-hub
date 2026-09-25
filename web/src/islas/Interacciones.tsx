@@ -135,7 +135,7 @@ export default function Interacciones({ sala, registrar }: { sala: string; regis
         <form onSubmit={enviarSugerencia} style={{ display: "grid", gap: ".6rem", marginTop: ".8rem" }}>
           <PliegoCampo etiqueta="Cómo se escribe" value={termino} maxLength={40} placeholder="Javier Tebas"
             onChange={(e) => setTermino(e.target.value)}
-            ayuda="Un nombre propio o un término, como debería salir. Producción lo agrega al glosario de la sala." />
+            ayuda="Un nombre propio o una marca, como debería salir. Producción lo agrega al glosario de la sala." />
           <div><PliegoBoton type="submit" size="sm" variant="outline" disabled={termino.trim().length < 2}>sugerir</PliegoBoton></div>
           {sugerido && <p className="prosa" role="status">{sugerido}</p>}
         </form>

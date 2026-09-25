@@ -580,7 +580,9 @@ func TestReplayYVivoSolapadosNoDuplican(t *testing.T) {
 // Con el audio REAL de la demo (130 s de charla de Nerdearla 2025 por
 // idioma): el sintético no tiene respiraciones, muletillas ni aplausos.
 func TestSegmentadorSobreLaDemoReal(t *testing.T) {
-	for nombre, pista := range map[string][]byte{"en": demoEN, "es": demoES} {
+	en, _ := demoFS.ReadFile("demo/en.pcm")
+	es, _ := demoFS.ReadFile("demo/es.pcm")
+	for nombre, pista := range map[string][]byte{"en": en, "es": es} {
 		tr := segmentar(t, ConfigPorDefecto(), bytesAPCM(pista))
 		var total time.Duration
 		var durs []string
@@ -787,11 +789,15 @@ func TestSalasDemoConGlosarioYNombresNumerados(t *testing.T) {
 		t.Fatal(err)
 	}
 	a, _ := e.bus.Sala(e.ctx, "demo-a")
+	b, _ := e.bus.Sala(e.ctx, "demo-b")
 	d, _ := e.bus.Sala(e.ctx, "demo-d")
 	if !strings.HasPrefix(a.Nombre, "Sala 01 · ") || !strings.Contains(a.Glosario, "ElevenLabs") {
 		t.Fatalf("demo-a: %+v", a)
 	}
-	if d.Idioma != "es" || !strings.Contains(d.Glosario, "Javier Tebas") {
+	if b.Idioma != "es" || !strings.Contains(b.Glosario, "Javier Tebas") || !strings.Contains(b.Nombre, "midudev") {
+		t.Fatalf("demo-b: %+v", b)
+	}
+	if d.Idioma != "es" || !strings.Contains(d.Glosario, "Nano Banana") || !strings.Contains(d.Nombre, "Omar Sanseviero") {
 		t.Fatalf("demo-d: %+v", d)
 	}
 	if idDemo(26) != "27" {
@@ -819,5 +825,26 @@ func TestMuchasSalasNoFrenanLaAPI(t *testing.T) {
 	res.Body.Close()
 	if d := time.Since(t0); d > 2*time.Second || res.StatusCode != 200 {
 		t.Fatalf("/api/salas con 40 salas esperando: %d en %s", res.StatusCode, d)
+	}
+}
+
+// Cada charla del catálogo está embebida y es audio de verdad (≥ 100 s a
+// 16 kHz): un archivo que faltara o viniera vacío dejaría una sala muda.
+func TestCatalogoDeCharlasCompleto(t *testing.T) {
+	for _, c := range Catalogo {
+		b, err := demoFS.ReadFile("demo/" + c.Archivo)
+		if err != nil {
+			t.Errorf("%s: %v", c.Archivo, err)
+			continue
+		}
+		if seg := len(b) / 32000; seg < 100 {
+			t.Errorf("%s dura %d s", c.Archivo, seg)
+		}
+		for _, g := range strings.Split(c.Glosario, ",") {
+			g = strings.TrimSpace(g)
+			if g != "" && strings.ToLower(g) == g && !strings.Contains(g, ".") {
+				t.Errorf("%s: «%s» es una palabra común; el glosario es de nombres que no se traducen", c.Archivo, g)
+			}
+		}
 	}
 }

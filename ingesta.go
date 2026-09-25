@@ -13,7 +13,7 @@ package main
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -27,11 +27,29 @@ import (
 	"github.com/coder/websocket"
 )
 
-//go:embed demo/en.pcm
-var demoEN []byte
+//go:embed demo/*.pcm
+var demoFS embed.FS
 
-//go:embed demo/es.pcm
-var demoES []byte
+// Charla es una pista del catálogo de salas demo (demo/FUENTES.md).
+type Charla struct {
+	Archivo, Idioma, Titulo, Orador string
+	// Nombres propios y marcas QUE SE DICEN en ese tramo: se escriben así
+	// y no se traducen (el motor los protege en la traducción). Nada de
+	// palabras comunes: "piratería" o "cutlasses" quedarían sin traducir.
+	Glosario string
+}
+
+var Catalogo = []Charla{
+	{"en.pcm", "en", "Multilingual AI agents", "Thor Schaeff", "ElevenLabs, HDMI, Thor Schaeff"},
+	{"es.pcm", "es", "Programming is dead", "midudev", "Midudev, Midu.dev, Miguel Ángel Durán, Javier Tebas, la Liga, Instagram, Nerdearla"},
+	{"d567RerxDGk.pcm", "en", "Interview with Andrew S. Tanenbaum", "Andrew S. Tanenbaum", "Andrew Tanenbaum, Nicolás Wolovick, Unix, MINIX, AT&T, John Lions, Butler Lampson, Berkeley, CTSS, Ken Thompson, Dennis Ritchie"},
+	{"ObElMurNobI.pcm", "es", "El futuro de la IA", "Omar Sanseviero", "Omar Sanseviero, Google DeepMind, Gemini 2.5 Flash Image, Gemini, Nano Banana, Veo"},
+	{"GkVjMxYi5gA.pcm", "en", "Conversational AI agents with ElevenLabs", "Thor Schaeff", "ElevenLabs, Thor Schaeff, Conversational AI, Gemini, Nerdearla"},
+	{"nGeiH6GSIuU.pcm", "es", "No sos Netflix", "J. Rodríguez Monti", "Netflix, Rodríguez Monti"},
+	{"rfR_UUkB7cI.pcm", "es", "La IA me obliga a pensar más", "Manu Rodríguez Gil", "Manu Rodríguez Gil, React, Angular, Vue"},
+	{"MyKj87N5B7Y.pcm", "es", "10 comandos para cambiarte la vida", "Emiliano Carletti", "Emiliano Carletti, Linux, macOS, Windows, Bash, Zsh, Xcode"},
+	{"D-L9zRwX1go.pcm", "es", "20 años de SRE", "Nerdearla 2025", "SRE, Linux, LUGMen, Mendoza, ChatGPT, Nerdearla"},
+}
 
 func bytesAPCM(b []byte) []int16 {
 	out := make([]int16, len(b)/2)
@@ -275,48 +293,40 @@ func (h *Hub) PrepararDemo(ctx context.Context) error {
 	if h.cfg.SalasDemo == 0 {
 		return nil
 	}
-	// El glosario de cada charla: los nombres propios y términos que SE
-	// DICEN en ese audio (los mismos que usó experimental para medir el
-	// recall, mediciones/calidad.py), sin las palabras comunes: un glosario
-	// con "audio" o "stream" mete esas palabras donde no van.
-	pistas := []struct {
-		idioma, nombre, glosario string
-		pcm                      []int16
-	}{
-		{"en", "Multilingual agents · Thor Schaeff", "ElevenLabs, HDMI, omni model, support agent, cutlasses, mutiny", bytesAPCM(demoEN)},
-		{"es", "Programming is dead · midudev", "Midudev, Midu.dev, Miguel Ángel Durán, Javier Tebas, la Liga, Instagram, piratería, influencer", bytesAPCM(demoES)},
+	pcms := map[string][]int16{}
+	for _, c := range Catalogo {
+		b, err := demoFS.ReadFile("demo/" + c.Archivo)
+		if err != nil {
+			return fmt.Errorf("demo/%s: %w", c.Archivo, err)
+		}
+		pcms[c.Archivo] = bytesAPCM(b)
 	}
 	for i := 0; i < h.cfg.SalasDemo; i++ {
-		p := pistas[i%2]
+		c := Catalogo[i%len(Catalogo)]
+		p := struct{ pcm []int16 }{pcms[c.Archivo]}
 		id := fmt.Sprintf("demo-%s", idDemo(i))
-		nombre := p.nombre
-		if h.cfg.SalasDemo > 2 {
-			nombre = fmt.Sprintf("Sala %02d · %s", i+1, p.nombre)
-		}
+		nombre := fmt.Sprintf("Sala %02d · %s · %s", i+1, c.Titulo, c.Orador)
 		s, err := h.bus.Sala(ctx, id)
 		if errors.Is(err, ErrNoExiste) {
-			s = Sala{ID: id, Nombre: nombre, Idioma: p.idioma, Backend: h.cfg.BackendDefecto,
-				Demo: true, Creada: h.ahora().Unix(), Glosario: p.glosario}
+			s = Sala{ID: id, Nombre: nombre, Idioma: c.Idioma, Backend: h.cfg.BackendDefecto,
+				Demo: true, Creada: h.ahora().Unix(), Glosario: c.Glosario}
 			if err := h.bus.GuardarSala(ctx, s); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return err
-		} else if s.Glosario == "" || s.Nombre != nombre {
-			// Las salas demo las maneja el hub: si ya existían sin glosario
-			// (versión anterior), se les pone; el backend que eligió
-			// producción desde el panel se respeta.
-			if s.Glosario == "" {
-				s.Glosario = p.glosario
-			}
-			s.Nombre = nombre
+		} else if s.Nombre != nombre || s.Idioma != c.Idioma || s.Glosario != c.Glosario {
+			// Las salas demo las maneja el hub: nombre, idioma y glosario
+			// salen del catálogo (si cambió, se actualizan). El backend que
+			// eligió producción desde el panel se respeta.
+			s.Nombre, s.Idioma, s.Glosario = nombre, c.Idioma, c.Glosario
 			if err := h.bus.GuardarSala(ctx, s); err != nil {
 				return err
 			}
 		}
 		// Desfase distinto por sala: que dos salas con la misma pista no
 		// digan lo mismo a la vez.
-		go h.DemoFuente(ctx, s.ID, p.pcm, time.Duration(i*37)*time.Second, h.cfg.DemoSoloConPublico)
+		go h.DemoFuente(ctx, s.ID, p.pcm, time.Duration((i/len(Catalogo))*47)*time.Second, h.cfg.DemoSoloConPublico)
 	}
 	return nil
 }

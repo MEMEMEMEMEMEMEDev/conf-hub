@@ -318,8 +318,9 @@ export default function Panel() {
       {/* ---- glosario ---- */}
       <section role="tabpanel" id={idsPestana("glosario", PREFIJO).panel} aria-labelledby={idsPestana("glosario", PREFIJO).pestana}
         hidden={pestana !== "glosario"} style={{ display: pestana === "glosario" ? "grid" : "none", gap: "1.25rem" }}>
-        <p className="prosa">Nombres propios y términos por sala: Whisper los busca en el audio. Sirven para nombres que suenan
-          raro; con muchos, los mete donde no van. Hasta 20 por sala.</p>
+        <p className="prosa">Nombres propios y marcas por sala: Whisper los busca en el audio, la transcripción los corrige
+          si salen parecidos («mi Dudef» → «Midudev») y la traducción los deja tal cual («Miguel Ángel Durán» no pasa a
+          «Michelangelo»). Por eso, sólo nombres: una palabra común en el glosario quedaría sin traducir. Hasta 20 por sala.</p>
         {bandeja.sugerencias.length > 0 && (
           <div style={{ display: "grid", gap: ".6rem" }}>
             <PliegoFilete label="sugerencias de la audiencia" readout={String(bandeja.sugerencias.length)} />

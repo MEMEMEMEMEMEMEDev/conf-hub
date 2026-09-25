@@ -158,9 +158,23 @@ export function escuchar(
   es.addEventListener("nivel", json<{ db: number }>(on.nivel ? (x) => on.nivel!(x.db) : undefined));
   es.addEventListener("reacciones", json(on.reacciones));
   es.addEventListener("preguntas", json(on.preguntas));
-  es.onopen = () => on.conexion(true);
-  es.onerror = () => on.conexion(false);
-  return () => es.close();
+  // Una reconexión corta no es un corte: el hub puede cerrar cada respuesta
+  // a propósito (SSE_VENTANA_S, detrás de un proxy que bufferiza) y
+  // EventSource vuelve en milisegundos. Sólo se avisa "reconectando" si no
+  // volvió en 3 s; si no, la sala parpadearía cada segundo y medio.
+  let aviso: ReturnType<typeof setTimeout> | null = null;
+  es.onopen = () => {
+    if (aviso) clearTimeout(aviso);
+    aviso = null;
+    on.conexion(true);
+  };
+  es.onerror = () => {
+    if (!aviso) aviso = setTimeout(() => on.conexion(false), 3000);
+  };
+  return () => {
+    if (aviso) clearTimeout(aviso);
+    es.close();
+  };
 }
 
 async function enviarJSON(url: string, cuerpo: unknown, metodo = "POST") {

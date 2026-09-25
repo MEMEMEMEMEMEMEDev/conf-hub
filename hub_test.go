@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"io"
 	"math"
 	"math/rand"
 	"net/http"
@@ -684,5 +685,38 @@ func leerHasta(res *http.Response, d time.Duration, f func(eventoSSE)) {
 			}
 			ev = eventoSSE{}
 		}
+	}
+}
+
+// Con ventana, la respuesta SSE TERMINA (un proxy que bufferiza la suelta)
+// y la reconexión con Last-Event-ID sigue sin perder ni repetir.
+func TestSSEConVentanaTerminaYSeRetoma(t *testing.T) {
+	e := nuevoEntorno(t)
+	e.hub.cfg.VentanaSSE = 300 * time.Millisecond
+	e.sala(t, "v1", "en")
+	id1 := e.sub(t, "v1", "uno")
+	e.sub(t, "v1", "dos")
+	t0 := time.Now()
+	// Cliente con tope: si la ventana no cierra, el test FALLA en 3 s en
+	// vez de colgar el build.
+	c := &http.Client{Timeout: 3 * time.Second}
+	res, err := c.Get(e.srv.URL + "/api/salas/v1/subtitulos")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cuerpo, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("la respuesta SSE no terminó en 3 s: la ventana no cierra (%v)", err)
+	}
+	res.Body.Close()
+	if d := time.Since(t0); d > 2*time.Second {
+		t.Fatalf("la respuesta tardó %s en terminar; la ventana es 300 ms", d)
+	}
+	if !strings.Contains(string(cuerpo), "retry: 50") || !strings.Contains(string(cuerpo), `"orig":"dos"`) {
+		t.Fatalf("cuerpo: %q", cuerpo)
+	}
+	ev := leerSSEDurante(t, e.srv.URL+"/api/salas/v1/subtitulos", id1, time.Second)
+	if len(ev) != 1 || !strings.Contains(ev[0].datos, `"orig":"dos"`) {
+		t.Fatalf("la reconexión desde «uno» tenía que traer sólo «dos»: %+v", ev)
 	}
 }

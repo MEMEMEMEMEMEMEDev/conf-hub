@@ -263,7 +263,17 @@ func (a *API) subtitulos(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// El reintento del EventSource: 2 s. Un despliegue corta ~3 s.
-	fmt.Fprint(w, "retry: 2000\n\n")
+	// VENTANA: con SSE_VENTANA_S > 0 la respuesta se cierra sola a los N
+	// segundos y el EventSource reconecta con Last-Event-ID (sin perder ni
+	// repetir nada). Existe por un proxy que BUFFERIZA la respuesta entera
+	// (el middleware `buffering` de traefik en la ruta, hallazgo A-01): un
+	// SSE infinito no sale nunca; uno que termina, sale al terminar. Cuesta
+	// hasta N segundos de latencia extra. 0 = SSE normal, sin fin.
+	if a.hub.cfg.VentanaSSE > 0 {
+		fmt.Fprint(w, "retry: 50\n\n")
+	} else {
+		fmt.Fprint(w, "retry: 2000\n\n")
+	}
 	if !enviar("estado", "", a.eventoEstado(ctx, s)) {
 		return
 	}
@@ -296,6 +306,12 @@ func (a *API) subtitulos(w http.ResponseWriter, r *http.Request) {
 
 	latido := time.NewTicker(a.hub.cfg.Latido)
 	defer latido.Stop()
+	var fin <-chan time.Time
+	if a.hub.cfg.VentanaSSE > 0 {
+		t := time.NewTimer(a.hub.cfg.VentanaSSE)
+		defer t.Stop()
+		fin = t.C
+	}
 	// El nivel de la voz, para la onda de la sala: cada 500 ms y sólo si
 	// cambió más de 2 dB (una sala callada no manda nada). Son bytes: el
 	// costo es del orden de un latido, no de un subtítulo.
@@ -305,6 +321,8 @@ func (a *API) subtitulos(w http.ResponseWriter, r *http.Request) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-fin:
 			return
 		case <-onda.C:
 			n := a.hub.Resumen(s.ID).Nivel

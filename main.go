@@ -37,6 +37,7 @@ type Config struct {
 	MaxSalas           int
 	Origenes           []string
 	Latido             time.Duration
+	VentanaSSE         time.Duration // 0 = SSE sin fin (ver api.go, A-01)
 	Segmentador        ConfigSegmentador
 }
 
@@ -84,6 +85,7 @@ func CargarConfig() Config {
 		MaxSalas:           entornoInt("MAX_SALAS", 28),
 		Origenes:           origenes,
 		Latido:             entornoSeg("LATIDO_S", 15*time.Second),
+		VentanaSSE:         entornoSeg("SSE_VENTANA_S", 0),
 		Segmentador:        seg,
 	}
 }

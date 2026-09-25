@@ -84,14 +84,29 @@ type EstadoMotor struct {
 	HaceSeg  int64  `json:"hace_s"`
 }
 
-type Bus struct{ r *redis.Client }
+// Bus tiene DOS clientes de redis. `r` para todo lo corto; `bloq` sólo
+// para las lecturas bloqueantes de los lectores de sala (XREAD BLOCK 5 s).
+// Con uno solo, 24 salas ocupaban las 10 conexiones del pool (10 ×
+// GOMAXPROCS, y el pod tiene 1 CPU) y cualquier otra consulta esperaba el
+// timeout del pool: /api/salas tardaba 8–60 s en producción (25-09).
+type Bus struct {
+	r    *redis.Client
+	bloq *redis.Client
+}
 
 func NuevoBus(url string) (*Bus, error) {
 	opt, err := redis.ParseURL(url)
 	if err != nil {
 		return nil, fmt.Errorf("REDIS_URL: %w", err)
 	}
-	return &Bus{r: redis.NewClient(opt)}, nil
+	corto := *opt
+	corto.PoolSize = 32
+	largo := *opt
+	// Una conexión por sala que espera, más margen. Mayor que MAX_SALAS +
+	// salas demo con holgura; una conexión ociosa de redis cuesta poco.
+	largo.PoolSize = 128
+	largo.ReadTimeout = 10 * time.Second // > el BLOCK de 5 s
+	return &Bus{r: redis.NewClient(&corto), bloq: redis.NewClient(&largo)}, nil
 }
 
 func (b *Bus) Ping(ctx context.Context) error { return b.r.Ping(ctx).Err() }
@@ -253,7 +268,7 @@ func (b *Bus) Todos(ctx context.Context, sala string) ([]Subtitulo, error) {
 
 // Esperar bloquea hasta que haya algo después de id o venza el plazo.
 func (b *Bus) Esperar(ctx context.Context, sala, id string, plazo time.Duration) ([]Subtitulo, error) {
-	res, err := b.r.XRead(ctx, &redis.XReadArgs{
+	res, err := b.bloq.XRead(ctx, &redis.XReadArgs{
 		Streams: []string{claveSubs(sala), id}, Block: plazo, Count: 100,
 	}).Result()
 	if errors.Is(err, redis.Nil) {

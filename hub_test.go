@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"math/rand"
@@ -795,5 +796,28 @@ func TestSalasDemoConGlosarioYNombresNumerados(t *testing.T) {
 	}
 	if idDemo(26) != "27" {
 		t.Fatalf("después de la z: %q", idDemo(26))
+	}
+}
+
+// Muchas salas esperando en redis no pueden frenar las consultas cortas:
+// con un solo pool, 24 lectores bloqueantes dejaban /api/salas en 8–60 s.
+func TestMuchasSalasNoFrenanLaAPI(t *testing.T) {
+	e := nuevoEntorno(t)
+	for i := 0; i < 40; i++ {
+		id := fmt.Sprintf("m%02d", i)
+		e.sala(t, id, "en")
+		if err := e.hub.AsegurarLector(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	time.Sleep(300 * time.Millisecond) // que los 40 estén bloqueados en XREAD
+	t0 := time.Now()
+	res, err := http.Get(e.srv.URL + "/api/salas")
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+	if d := time.Since(t0); d > 2*time.Second || res.StatusCode != 200 {
+		t.Fatalf("/api/salas con 40 salas esperando: %d en %s", res.StatusCode, d)
 	}
 }

@@ -21,7 +21,6 @@ RUN CGO_ENABLED=0 go test -mod=vendor -count=1 ./...
 RUN CGO_ENABLED=0 go build -mod=vendor -trimpath -ldflags="-s -w" -o /hub .
 
 FROM registry.registry-system.svc.cluster.local:5000/alpine:3.21@sha256:90794469f3b3982e5f921d2cbe738b5e91b75d651686fe1bc6ec7fd2b9082e4a
-registry.registry-system.svc.cluster.local:5000/alpine:3.21@sha256:90794469f3b3982e5f921d2cbe738b5e91b75d651686fe1bc6ec7fd2b9082e4a
 COPY --from=build /hub /usr/local/bin/hub
 # Numérico y no-root: PSS restricted.
 USER 65532:65532

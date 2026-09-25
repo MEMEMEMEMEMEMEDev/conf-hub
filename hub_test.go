@@ -84,7 +84,7 @@ func TestCierraEnLaPausaDespuesDelMinimo(t *testing.T) {
 		if d < 8*time.Second || d > 12*time.Second {
 			t.Errorf("tramo %d dura %s, fuera de [8 s, 12 s]", i, d)
 		}
-		if !x.Final || x.Seq != int64(i+1) {
+		if base := time.Unix(1_700_000_000, 0).Unix(); !x.Final || x.Seq != base+int64(i+1) {
 			t.Errorf("tramo %d: final=%v seq=%d", i, x.Final, x.Seq)
 		}
 	}
@@ -145,8 +145,8 @@ func TestParcialesSaleConLaVentanaAbierta(t *testing.T) {
 			finales++
 		} else {
 			parciales++
-			if x.Seq != 1 {
-				t.Errorf("el parcial debe anunciar el seq del final que viene (1), trae %d", x.Seq)
+			if x.Seq != 1_700_000_000+1 {
+				t.Errorf("el parcial debe anunciar el seq del final que viene, trae %d", x.Seq)
 			}
 		}
 	}
@@ -718,5 +718,31 @@ func TestSSEConVentanaTerminaYSeRetoma(t *testing.T) {
 	ev := leerSSEDurante(t, e.srv.URL+"/api/salas/v1/subtitulos", id1, time.Second)
 	if len(ev) != 1 || !strings.Contains(ev[0].datos, `"orig":"dos"`) {
 		t.Fatalf("la reconexión desde «uno» tenía que traer sólo «dos»: %+v", ev)
+	}
+}
+
+// Un segmentador nuevo para la misma sala (hub reiniciado, emisor que
+// reconecta, demo que vuelve a tener público) numera POR ENCIMA del
+// anterior: si no, el motor y el navegador descartan sus parciales como
+// "de un tramo cuyo final ya salió".
+func TestSeqCreceEntreSegmentadores(t *testing.T) {
+	r := rand.New(rand.NewSource(8))
+	pcm := concat(habla(r, 9), ruido(r, 1), habla(r, 9), ruido(r, 2))
+	var ultimo int64
+	uno := NuevoSegmentador(ConfigPorDefecto(), time.Unix(1_700_000_000, 0), func(tr Tramo) { ultimo = tr.Seq })
+	uno.Escribir(pcm)
+	if ultimo == 0 {
+		t.Fatal("el primer segmentador no emitió")
+	}
+	// El segundo nace 20 s después (lo que duró el audio del primero).
+	var primero int64
+	dos := NuevoSegmentador(ConfigPorDefecto(), time.Unix(1_700_000_020, 0), func(tr Tramo) {
+		if primero == 0 {
+			primero = tr.Seq
+		}
+	})
+	dos.Escribir(pcm)
+	if primero <= ultimo {
+		t.Fatalf("el segmentador nuevo empezó en seq %d, sin superar el %d del anterior", primero, ultimo)
 	}
 }

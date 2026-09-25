@@ -92,7 +92,16 @@ type Segmentador struct {
 }
 
 func NuevoSegmentador(cfg ConfigSegmentador, origen time.Time, emitir func(Tramo)) *Segmentador {
-	return &Segmentador{cfg: cfg, emitir: emitir, origen: origen, piso: -60, Nivel: -90}
+	// La secuencia arranca en los SEGUNDOS del reloj, no en 0. Un
+	// segmentador nuevo nace cada vez que el hub se reinicia, un emisor
+	// reconecta o una sala demo vuelve a tener público; el motor y el
+	// navegador descartan el parcial de un tramo cuyo final ya vieron
+	// (seq ≤ último final). Con seq desde 0, después de cualquier reinicio
+	// los parciales de la sala quedaban suprimidos hasta superar el número
+	// viejo (medido en producción, 25-09: 0 parciales en 120 s en demo-a).
+	// Como un tramo dura ≥ 1 s de audio, un segmentador posterior siempre
+	// arranca por encima de donde llegó el anterior.
+	return &Segmentador{cfg: cfg, emitir: emitir, origen: origen, piso: -60, Nivel: -90, seq: origen.Unix()}
 }
 
 func (s *Segmentador) frames(d time.Duration) int {

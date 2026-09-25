@@ -60,7 +60,10 @@ spec:
               valueFrom: {secretKeyRef: {name: hub-panel, key: usuario}}
             - name: OPERADOR_PASSWORD
               valueFrom: {secretKeyRef: {name: hub-panel, key: password}}
-            - {name: SALAS_DEMO, value: "2"}
+            # 24 salas con las dos charlas (desfasadas). Sólo mandan audio al
+            # motor mientras alguien las mira (DEMO_SOLO_CON_PUBLICO): sin
+            # público no gastan GPU.
+            - {name: SALAS_DEMO, value: "24"}
             - {name: DEMO_SOLO_CON_PUBLICO, value: "1"}
             - {name: PARCIAL_CADA_S, value: "3"}
             - {name: BACKEND_DEFECTO, value: "gpu"}

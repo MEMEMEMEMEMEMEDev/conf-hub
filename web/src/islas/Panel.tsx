@@ -11,7 +11,7 @@ import type { Idioma, PreguntaT, Sala } from "../lib/sala";
 interface Vivo {
   en_vivo: boolean; emisores: number; hace_audio_s: number; nivel: number; tramos: number;
   lat_p50_ms: number; lat_p95_ms: number; lat_muestras: number; saltados: number; errores: number;
-  ultimo_error?: string; hace_final_s: number; atendio: string;
+  ultimo_error?: string; hace_error_s?: number; hace_final_s: number; atendio: string;
 }
 interface Interaccion { no_se_entiende_2min: number; preguntas_pendientes: number; sugerencias: number }
 interface Fila extends Sala { vivo: Vivo; interaccion: Interaccion }
@@ -34,7 +34,9 @@ function estadoDe(f: Fila, m: Motor): [PliegoEstadoTipo, string] {
   // Tres personas diciendo "no se entiende" en 2 minutos es la alarma más
   // directa que hay: la da la audiencia, que es para quien existe esto.
   if (f.interaccion?.no_se_entiende_2min >= 3) return ["mal", `${f.interaccion.no_se_entiende_2min} «no se entiende» en 2 min`];
-  if (f.vivo.errores > 0 && f.vivo.ultimo_error) return ["mal", `error: ${f.vivo.ultimo_error.slice(0, 50)}`];
+  // El error del hub ya viene en castellano y se borra solo cuando la sala
+  // vuelve a dar subtítulos: si está, es de AHORA.
+  if (f.vivo.ultimo_error) return ["mal", f.vivo.ultimo_error.replace(/^No salió el subtítulo: /, "sin subtítulo: ").slice(0, 70)];
   if (!f.vivo.en_vivo) {
     if (f.demo) return ["aviso", "demo: suena con audiencia"];
     return f.vivo.hace_audio_s < 0 ? ["aviso", "nunca recibió audio"] : ["aviso", `sin audio hace ${Math.round(f.vivo.hace_audio_s)} s`];
@@ -241,7 +243,7 @@ export default function Panel() {
             </div>
             <p className="prosa" style={{ fontSize: ".95rem" }}>
               {f.vivo.tramos} tramos · {f.vivo.saltados} saltados · {f.vivo.errores} errores
-              {f.vivo.ultimo_error ? ` · último error: ${f.vivo.ultimo_error}` : ""}
+              {f.vivo.ultimo_error ? ` · hace ${Math.round(f.vivo.hace_error_s ?? 0)} s: ${f.vivo.ultimo_error}` : ""}
               {f.glosario ? ` · glosario: ${f.glosario}` : " · sin glosario"}
             </p>
             <nav aria-label={`Enlaces de ${f.nombre}`} className="fila micro" style={{ gap: ".5rem 1rem" }}>

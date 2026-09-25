@@ -46,6 +46,7 @@ type Vivo struct {
 	Saltados    int64
 	Errores     int64
 	UltimoError string
+	CuandoError time.Time
 	UltimoFinal time.Time
 	// El backend que ATENDIÓ el último final, no el que la sala pide: si la
 	// GPU se cae y el motor pasa la sala a Gemini, el panel y la audiencia
@@ -79,6 +80,7 @@ type ResumenVivo struct {
 	Saltados    int64   `json:"saltados"`
 	Errores     int64   `json:"errores"`
 	UltimoError string  `json:"ultimo_error,omitempty"`
+	HaceErrorS  float64 `json:"hace_error_s,omitempty"`
 	HaceFinalS  float64 `json:"hace_final_s"`
 	Atendio     string  `json:"atendio"`
 }
@@ -101,6 +103,12 @@ func (h *Hub) Resumen(sala string) ResumenVivo {
 	r := ResumenVivo{Emisores: v.Emisores, Nivel: v.Nivel, Tramos: v.Tramos, Parciales: v.Parciales,
 		P50: percentil(v.Latencias, 0.5), P95: percentil(v.Latencias, 0.95), Muestras: len(v.Latencias),
 		Saltados: v.Saltados, Errores: v.Errores, UltimoError: v.UltimoError, HaceAudioS: -1, HaceFinalS: -1,
+		HaceErrorS: func() float64 {
+			if v.UltimoError == "" {
+				return 0
+			}
+			return h.ahora().Sub(v.CuandoError).Seconds()
+		}(),
 		Atendio: v.Atendio}
 	if !v.UltimoAudio.IsZero() {
 		r.HaceAudioS = ahora.Sub(v.UltimoAudio).Seconds()
@@ -124,11 +132,17 @@ func (v *Vivo) registrarSub(s Subtitulo, ahora time.Time) {
 		}
 		v.UltimoFinal = ahora
 		v.Atendio = s.Backend
+		// La sala volvió a dar subtítulos: el error anterior ya no describe
+		// lo que pasa AHORA. Se borra (el contador de errores queda, como
+		// historia). Antes quedaba pegado para siempre y el panel mostraba
+		// la sala en rojo aunque se hubiera recuperado (visto en demo-b).
+		v.UltimoError = ""
 	case "saltado":
 		v.Saltados++
 	case "error":
 		v.Errores++
 		v.UltimoError = s.Detalle
+		v.CuandoError = ahora
 	}
 }
 

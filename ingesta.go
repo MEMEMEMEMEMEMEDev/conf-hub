@@ -17,6 +17,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -261,30 +262,57 @@ func (h *Hub) DemoFuente(ctx context.Context, salaID string, pista []int16, desf
 	}
 }
 
+// idDemo: a, b, …, z, y después 27, 28… (a y b siguen siendo las de siempre).
+func idDemo(i int) string {
+	if i < 26 {
+		return string(rune('a' + i))
+	}
+	return fmt.Sprintf("%02d", i+1)
+}
+
 // PrepararDemo crea las salas demo que falten y lanza sus fuentes.
 func (h *Hub) PrepararDemo(ctx context.Context) error {
 	if h.cfg.SalasDemo == 0 {
 		return nil
 	}
+	// El glosario de cada charla: los nombres propios y términos que SE
+	// DICEN en ese audio (los mismos que usó experimental para medir el
+	// recall, mediciones/calidad.py), sin las palabras comunes: un glosario
+	// con "audio" o "stream" mete esas palabras donde no van.
 	pistas := []struct {
-		idioma, nombre string
-		pcm            []int16
+		idioma, nombre, glosario string
+		pcm                      []int16
 	}{
-		{"en", "Multilingual agents · Thor Schaeff", bytesAPCM(demoEN)},
-		{"es", "Programming is dead · midudev", bytesAPCM(demoES)},
+		{"en", "Multilingual agents · Thor Schaeff", "ElevenLabs, HDMI, omni model, support agent, cutlasses, mutiny", bytesAPCM(demoEN)},
+		{"es", "Programming is dead · midudev", "Midudev, Midu.dev, Miguel Ángel Durán, Javier Tebas, la Liga, Instagram, piratería, influencer", bytesAPCM(demoES)},
 	}
 	for i := 0; i < h.cfg.SalasDemo; i++ {
 		p := pistas[i%2]
-		id := "demo-" + string(rune('a'+i))
+		id := fmt.Sprintf("demo-%s", idDemo(i))
+		nombre := p.nombre
+		if h.cfg.SalasDemo > 2 {
+			nombre = fmt.Sprintf("Sala %02d · %s", i+1, p.nombre)
+		}
 		s, err := h.bus.Sala(ctx, id)
 		if errors.Is(err, ErrNoExiste) {
-			s = Sala{ID: id, Nombre: p.nombre, Idioma: p.idioma, Backend: h.cfg.BackendDefecto,
-				Demo: true, Creada: h.ahora().Unix()}
+			s = Sala{ID: id, Nombre: nombre, Idioma: p.idioma, Backend: h.cfg.BackendDefecto,
+				Demo: true, Creada: h.ahora().Unix(), Glosario: p.glosario}
 			if err := h.bus.GuardarSala(ctx, s); err != nil {
 				return err
 			}
 		} else if err != nil {
 			return err
+		} else if s.Glosario == "" || s.Nombre != nombre {
+			// Las salas demo las maneja el hub: si ya existían sin glosario
+			// (versión anterior), se les pone; el backend que eligió
+			// producción desde el panel se respeta.
+			if s.Glosario == "" {
+				s.Glosario = p.glosario
+			}
+			s.Nombre = nombre
+			if err := h.bus.GuardarSala(ctx, s); err != nil {
+				return err
+			}
 		}
 		// Desfase distinto por sala: que dos salas con la misma pista no
 		// digan lo mismo a la vez.

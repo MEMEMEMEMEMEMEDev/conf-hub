@@ -746,3 +746,54 @@ func TestSeqCreceEntreSegmentadores(t *testing.T) {
 		t.Fatalf("el segmentador nuevo empezó en seq %d, sin superar el %d del anterior", primero, ultimo)
 	}
 }
+
+// El error de una sala se borra cuando la sala vuelve a dar subtítulos: si
+// no, el panel la mostraba en rojo para siempre (demo-b, 25-09).
+func TestElErrorSeBorraCuandoLaSalaSeRecupera(t *testing.T) {
+	e := nuevoEntorno(t)
+	e.sala(t, "er", "es")
+	if err := e.hub.AsegurarLector("er"); err != nil {
+		t.Fatal(err)
+	}
+	e.bus.PublicarSubtitulo(e.ctx, "er", Subtitulo{Tipo: "error", Detalle: "No salió el subtítulo: Gemini no respondió a tiempo."})
+	deadline := time.Now().Add(2 * time.Second)
+	for e.hub.Resumen("er").UltimoError == "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if r := e.hub.Resumen("er"); r.UltimoError == "" || r.Errores != 1 {
+		t.Fatalf("el error no se registró: %+v", r)
+	}
+	e.sub(t, "er", "volvió")
+	deadline = time.Now().Add(2 * time.Second)
+	for e.hub.Resumen("er").UltimoError != "" && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	r := e.hub.Resumen("er")
+	if r.UltimoError != "" {
+		t.Fatalf("la sala se recuperó y el error sigue: %q", r.UltimoError)
+	}
+	if r.Errores != 1 {
+		t.Fatalf("el contador es historia y se conserva: %d", r.Errores)
+	}
+}
+
+func TestSalasDemoConGlosarioYNombresNumerados(t *testing.T) {
+	e := nuevoEntorno(t)
+	e.hub.cfg.SalasDemo = 4
+	ctx, cancel := context.WithCancel(e.ctx)
+	defer cancel()
+	if err := e.hub.PrepararDemo(ctx); err != nil {
+		t.Fatal(err)
+	}
+	a, _ := e.bus.Sala(e.ctx, "demo-a")
+	d, _ := e.bus.Sala(e.ctx, "demo-d")
+	if !strings.HasPrefix(a.Nombre, "Sala 01 · ") || !strings.Contains(a.Glosario, "ElevenLabs") {
+		t.Fatalf("demo-a: %+v", a)
+	}
+	if d.Idioma != "es" || !strings.Contains(d.Glosario, "Javier Tebas") {
+		t.Fatalf("demo-d: %+v", d)
+	}
+	if idDemo(26) != "27" {
+		t.Fatalf("después de la z: %q", idDemo(26))
+	}
+}

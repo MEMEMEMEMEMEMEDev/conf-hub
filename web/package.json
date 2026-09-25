@@ -13,7 +13,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ahroi/foundation": "https://codeload.github.com/MEMEMEMEMEMEMEDev/aegis-canvas/tar.gz/refs/tags/v0.13.0",
+    "@ahroi/foundation": "https://codeload.github.com/MEMEMEMEMEMEMEDev/aegis-canvas/tar.gz/refs/tags/v0.13.1",
     "@astrojs/react": "6.0.2",
     "astro": "7.2.2",
     "qrcode-generator": "^2.0.4",

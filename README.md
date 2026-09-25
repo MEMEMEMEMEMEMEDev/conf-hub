@@ -41,10 +41,16 @@ Hecho para la Nerdearla Vibeathon 2026.
    elegí **micrófono**, **una pestaña** (por ejemplo, un video de YouTube de
    una charla) o **un archivo de audio**: se reproduce a ritmo real como si
    fuera en vivo.
-3. Desde un stream de escenario, sin navegador:
+3. Desde un stream de escenario, sin navegador, con `conf-emitir` (en este
+   repo, `cmd/conf-emitir`):
    ```bash
-   ffmpeg -re -i rtmp://… -f s16le -ar 16000 -ac 1 - | conf-emitir -url https://<dominio> -sala <sala> -token <token>
+   go install github.com/MEMEMEMEMEMEMEDev/conf-hub/cmd/conf-emitir@latest
+   export CONF_TOKEN=…   # el token de la sala, del panel; nunca por argumento
+   ffmpeg -re -i rtmp://… -f s16le -ar 16000 -ac 1 - | conf-emitir -url https://<dominio> -sala <sala>
    ```
+   Sirve cualquier cosa que ffmpeg lea: RTMP, SRT, HLS, una placa de audio
+   (`-f alsa -i hw:1`) o un archivo. Si el hub se reinicia o la red se corta,
+   reconecta solo.
 
 ## Cómo funciona
 
@@ -207,8 +213,17 @@ cd conf-web && npm ci && HUB_DEV=http://localhost:18080 npm run dev
 
 1. En `/panel/` creá una sala por escenario (nombre, idioma de la charla,
    motor). Te da un enlace de emisión con el token de la sala después del `#`.
-2. En la consola de sonido o en una notebook de la sala, abrí ese enlace y
-   elegí micrófono o el audio de una pestaña (por ejemplo, el stream).
+2. En la mini PC del escenario (la placa de audio entra por el cable de
+   3,5 mm), abrí ese enlace y tocá «emitir el micrófono o la entrada de
+   línea». Desde ahí **nadie tiene que tocar nada**: la consola reconecta
+   sola si el hub se despliega o la red se corta (un vigilante abandona la
+   conexión que no late en 5 s), vuelve a pedir la entrada si el cable se
+   desconecta, reanuda el audio si el navegador lo pausa, mantiene la
+   pantalla despierta, y tras un F5 o un reinicio vuelve a emitir sola. Lo
+   que no puede arreglar lo grita: un minuto sin sonido. Probado en Chromium
+   con el hub reiniciado, el hub congelado y un F5, sin un clic.
+   Para que arranque sola tras reiniciar la mini PC: Chrome en modo kiosco
+   con `--autoplay-policy=no-user-gesture-required`.
 3. Para el stream: en OBS o vMix agregá un *Browser Source* con
    `https://<dominio>/obs/?s=<sala>&l=es` (1920×1080, fondo transparente).
 4. Para la audiencia: en el proyector del escenario, `https://<dominio>/cartel/?s=<sala>`
